@@ -221,19 +221,156 @@ const SOLVED: Cube = Cube {
     },
 };
 
+const UNSOLVED_A: Cube = Cube {
+    top_left_front: Piece {
+        top: Red,
+        bottom: Inside,
+        left: White,
+        right: Inside,
+        front: Green,
+        back: Inside,
+    },
+    top_left_back: Piece {
+        top: Green,
+        bottom: Inside,
+        left: Orange,
+        right: Inside,
+        front: Inside,
+        back: White,
+    },
+    top_right_front: Piece {
+        top: Yellow,
+        bottom: Inside,
+        left: Inside,
+        right: Red,
+        front: Blue,
+        back: Inside,
+    },
+    top_right_back: Piece {
+        top: Orange,
+        bottom: Inside,
+        left: Inside,
+        right: Yellow,
+        front: Inside,
+        back: Green,
+    },
+    bottom_left_front: Piece {
+        top: Inside,
+        bottom: Yellow,
+        left: Green,
+        right: Inside,
+        front: Red,
+        back: Inside,
+    },
+    bottom_left_back: Piece {
+        top: Inside,
+        bottom: Blue,
+        left: White,
+        right: Inside,
+        front: Inside,
+        back: Red,
+    },
+    bottom_right_front: Piece {
+        top: Inside,
+        bottom: White,
+        left: Inside,
+        right: Blue,
+        front: Orange,
+        back: Inside,
+    },
+    bottom_right_back: Piece {
+        top: Inside,
+        bottom: Orange,
+        left: Inside,
+        right: Yellow,
+        front: Inside,
+        back: Blue,
+    },
+};
+
+const UNSOLVED_B: Cube = Cube {
+    top_left_front: Piece {
+        top: Blue,
+        bottom: Inside,
+        left: Red,
+        right: Inside,
+        front: Yellow,
+        back: Inside,
+    },
+    top_left_back: Piece {
+        top: Blue,
+        bottom: Inside,
+        left: Red,
+        right: Inside,
+        front: Inside,
+        back: White,
+    },
+    top_right_front: Piece {
+        top: Blue,
+        bottom: Inside,
+        left: Inside,
+        right: Orange,
+        front: Yellow,
+        back: Inside,
+    },
+    top_right_back: Piece {
+        top: Orange,
+        bottom: Inside,
+        left: Inside,
+        right: Green,
+        front: Inside,
+        back: White,
+    },
+    bottom_left_front: Piece {
+        top: Inside,
+        bottom: Green,
+        left: White,
+        right: Inside,
+        front: Red,
+        back: Inside,
+    },
+    bottom_left_back: Piece {
+        top: Inside,
+        bottom: White,
+        left: Blue,
+        right: Inside,
+        front: Inside,
+        back: Orange,
+    },
+    bottom_right_front: Piece {
+        top: Inside,
+        bottom: Green,
+        left: Inside,
+        right: Orange,
+        front: Yellow,
+        back: Inside,
+    },
+    bottom_right_back: Piece {
+        top: Inside,
+        bottom: Red,
+        left: Inside,
+        right: Yellow,
+        front: Inside,
+        back: Green,
+    },
+};
+
 use proptest::prelude::*;
 use proptest_derive::Arbitrary;
 proptest! {
-    // #[test]
-    // fn doesnt_crash(ref vec in any::<Vec<Move>>()) {
-    //     let mut cube = SOLVED;
+    #![proptest_config(ProptestConfig {
+        cases: 1000_000, .. ProptestConfig::default()
+    })]
+    #[test]
+    fn unsolvable(ref vec in any::<Vec<Move>>()) {
+        let mut cube = UNSOLVED_B;
 
-    //     for move_ in vec {
-    //         cube.apply(*move_);
-    //     }
+        for move_ in vec {
+            cube.apply(*move_);
+        }
 
-    //     prop_assert!(!cube.solved());
-    // }
+        prop_assert!(!cube.solved());
+    }
 }
 
 #[test]

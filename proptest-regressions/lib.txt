@@ -5,3 +5,6 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc b508ae83686307f17bc7aea471ccf5e9b638a88766a4c474aa77465fb00d7526 # shrinks to ref vec = []
+cc 7cc7afa6b7e06c29bcbe75795da80f991621b426cc9e375da88d1a5fb976c0eb # shrinks to ref vec = []
+cc 32b5d6c4bb0095609bb286c54d5c2630b01493e90977391d185fed3e29e53df8 # shrinks to ref vec = [Right, Top, Bottom, Top, Bottom, Top, Left, Right, Left, Top, Left, Top, Top, Right, Top, Left, Right, Top, Right, Right, Top, Top, Right, Bottom, Bottom, Left, Top, Bottom, Bottom, Top, Left, Left, Bottom, Top, Top, Left, Right, Left, Top, Left, Right, Right, Right, Bottom, Top, Right, Top, Left, Right, Left, Left, Bottom, Bottom, Bottom, Bottom, Right, Bottom, Bottom, Top]
+cc 1274b60b3940ec63290c5593b54278d186948ae8b464ae24ac96014d4b45780d # shrinks to ref vec = [Bottom, Bottom, Bottom, Bottom, Bottom, Top, Bottom, Top, Left, Top, Bottom, Bottom, Top, Bottom, Bottom, Right, Left, Right, Left, Top, Left, Left, Left]
