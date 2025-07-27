@@ -1,5 +1,5 @@
 #[derive(Copy, Clone, PartialEq, Eq)]
-enum Color {
+pub enum Color {
     White,
     Blue,
     Red,
@@ -9,371 +9,393 @@ enum Color {
     Inside,
 }
 
-struct Piece {
-    top: Color,
-    bottom: Color,
-    left: Color,
-    right: Color,
-    front: Color,
-    back: Color,
+#[derive(Copy, Clone)]
+pub struct Piece {
+    pub top: Color,
+    pub bottom: Color,
+    pub left: Color,
+    pub right: Color,
+    pub front: Color,
+    pub back: Color,
 }
 
-/// Rotation is always clockwise.
-#[derive(Copy, Clone, Debug, Arbitrary)]
-enum Move {
-    Top,
-    Bottom,
-    Left,
-    Right,
+/// A move is clockwise rotation of the layer with the given index on the given axis. Clockwise
+/// means clockwise when looking in the direction of the axis, so when rotating the bottom face of
+/// the cube it's counterclockwise when you look at it from the bottom.
+#[derive(Copy, Clone, Debug, proptest_derive::Arbitrary)]
+#[proptest(params(usize))]
+pub enum Move {
+    X(#[proptest(strategy = "0..params")] usize),
+    Y(#[proptest(strategy = "0..params")] usize),
+    Z(#[proptest(strategy = "0..params")] usize),
 }
 
-struct Cube {
-    top_left_front: Piece,
-    top_left_back: Piece,
-    top_right_front: Piece,
-    top_right_back: Piece,
-    bottom_left_front: Piece,
-    bottom_left_back: Piece,
-    bottom_right_front: Piece,
-    bottom_right_back: Piece,
+pub struct Cube<const LAYERS: usize> {
+    /// In order from outer to inner arrays these encode the x, y and z axes. This encoding is
+    /// simply for the convenience of indexing them as `[x][y][z]`.
+    pub content: [[[Piece; LAYERS]; LAYERS]; LAYERS],
+}
+
+struct CubeLayer<'a, T, const LAYERS: usize>([[&'a mut T; LAYERS]; LAYERS]);
+
+impl<'a, T, const LAYERS: usize> CubeLayer<'a, T, LAYERS> {
+    fn four_disjoint_mut(&mut self, indices: [(usize, usize); 4]) -> [&mut T; 4] {
+        let flattened = self.0.as_flattened_mut();
+
+        flattened
+            .get_disjoint_mut(indices.map(|(x, y)| x * LAYERS + y))
+            .unwrap()
+            .map(|piece| &mut **piece)
+    }
+
+    fn rotate(&mut self) {
+        for i in 0..LAYERS / 2 {
+            let size = LAYERS - i * 2;
+
+            // 0 1 2 3      C 1 2 0      C 8 2 0      C 8 4 0
+            // 4 5 6 7  =>  4 5 6 7  =>  4 5 6 1  =>  D 5 6 1
+            // 8 9 A B      8 9 A B      E 9 A B      E 9 A 2
+            // C D E F      F D E 3      F D 7 3      F B 7 3
+            for j in 0..size - 1 {
+                let [a, b, c, d] = self.four_disjoint_mut([
+                    (i + j, i),
+                    (i + size - 1, i + j),
+                    (i + size - 1 - j, i + size - 1),
+                    (i, i + size - 1 - j),
+                ]);
+                rotate(a, b, c, d);
+            }
+        }
+    }
+}
+
+impl<'a, const LAYERS: usize> CubeLayer<'a, Piece, LAYERS> {
+    fn rotate_x(&mut self) {
+        self.rotate();
+
+        for piece in self.0.as_flattened_mut() {
+            piece.rotate_x();
+        }
+    }
+
+    fn rotate_y(&mut self) {
+        self.rotate();
+
+        for piece in self.0.as_flattened_mut() {
+            piece.rotate_y();
+        }
+    }
+
+    fn rotate_z(&mut self) {
+        self.rotate();
+
+        for piece in self.0.as_flattened_mut() {
+            piece.rotate_z();
+        }
+    }
 }
 
 fn rotate<T>(a: &mut T, b: &mut T, c: &mut T, d: &mut T) {
-    use std::mem::swap;
-
     // 1 2 3 4
     // 2 1 3 4 <- swap(a, b)
     // 2 1 4 3 <- swap(c, d)
     // 4 1 2 3 <- swap(a, c)
-    swap(a, b);
-    swap(c, d);
-    swap(a, c);
+    std::mem::swap(a, b);
+    std::mem::swap(c, d);
+    std::mem::swap(a, c);
 }
 
 impl Piece {
-    fn apply(&mut self, move_: Move) -> &mut Self {
-        match move_ {
-            Move::Top => rotate(
-                &mut self.front,
-                &mut self.left,
-                &mut self.back,
-                &mut self.right,
-            ),
-            Move::Bottom => rotate(
-                &mut self.back,
-                &mut self.right,
-                &mut self.front,
-                &mut self.left,
-            ),
-            Move::Left => rotate(
-                &mut self.bottom,
-                &mut self.back,
-                &mut self.top,
-                &mut self.front,
-            ),
-            Move::Right => rotate(
-                &mut self.top,
-                &mut self.back,
-                &mut self.bottom,
-                &mut self.front,
-            ),
-        }
+    fn rotate_x(&mut self) {
+        rotate(
+            &mut self.top,
+            &mut self.front,
+            &mut self.bottom,
+            &mut self.back,
+        );
+    }
 
-        self
+    fn rotate_y(&mut self) {
+        rotate(
+            &mut self.front,
+            &mut self.left,
+            &mut self.back,
+            &mut self.right,
+        );
+    }
+
+    fn rotate_z(&mut self) {
+        rotate(
+            &mut self.left,
+            &mut self.top,
+            &mut self.right,
+            &mut self.bottom,
+        );
     }
 }
 
-impl Cube {
-    fn apply(&mut self, move_: Move) {
+impl<const LAYERS: usize> Cube<LAYERS> {
+    fn x_layer(&mut self, layer: usize) -> CubeLayer<Piece, LAYERS> {
+        CubeLayer(self.content[layer].each_mut().map(|x| x.each_mut()))
+    }
+
+    fn y_layer(&mut self, layer: usize) -> CubeLayer<Piece, LAYERS> {
+        CubeLayer(self.content.each_mut().map(|x| x[layer].each_mut()))
+    }
+
+    fn z_layer(&mut self, layer: usize) -> CubeLayer<Piece, LAYERS> {
+        CubeLayer(
+            self.content
+                .each_mut()
+                .map(|x| x.each_mut().map(|x| &mut x[layer])),
+        )
+    }
+
+    pub fn apply(&mut self, move_: Move) {
         match move_ {
-            Move::Top => rotate(
-                self.top_left_front.apply(move_),
-                self.top_left_back.apply(move_),
-                self.top_right_back.apply(move_),
-                self.top_right_front.apply(move_),
-            ),
-            Move::Bottom => rotate(
-                self.bottom_right_front.apply(move_),
-                self.bottom_left_front.apply(move_),
-                self.bottom_left_back.apply(move_),
-                self.bottom_right_back.apply(move_),
-            ),
-            Move::Left => rotate(
-                self.bottom_left_front.apply(move_),
-                self.bottom_left_back.apply(move_),
-                self.top_left_back.apply(move_),
-                self.top_left_front.apply(move_),
-            ),
-            Move::Right => rotate(
-                self.bottom_right_back.apply(move_),
-                self.bottom_right_front.apply(move_),
-                self.top_right_front.apply(move_),
-                self.top_right_back.apply(move_),
-            ),
+            Move::X(layer) => self.x_layer(layer).rotate_x(),
+            Move::Y(layer) => self.y_layer(layer).rotate_y(),
+            Move::Z(layer) => self.z_layer(layer).rotate_z(),
         }
     }
 
-    fn solved(&self) -> bool {
-        fn all_eq(side: [Color; 4]) -> bool {
-            side.windows(2).all(|w| w[0] == w[1])
+    pub fn solved(&mut self) -> bool {
+        fn all_eq<const LAYERS: usize>(
+            layer: &mut CubeLayer<Piece, LAYERS>,
+            field: impl Fn(&Piece) -> Color,
+        ) -> bool {
+            layer
+                .0
+                .as_flattened()
+                .windows(2)
+                .all(|w| field(w[0]) == field(w[1]))
         }
 
-        all_eq([
-            self.top_left_front.top,
-            self.top_left_back.top,
-            self.top_right_front.top,
-            self.top_right_back.top,
-        ]) && all_eq([
-            self.bottom_left_front.bottom,
-            self.bottom_left_back.bottom,
-            self.bottom_right_front.bottom,
-            self.bottom_right_back.bottom,
-        ]) && all_eq([
-            self.top_left_front.left,
-            self.top_left_back.left,
-            self.bottom_left_front.left,
-            self.bottom_left_back.left,
-        ]) && all_eq([
-            self.top_right_front.right,
-            self.top_right_back.right,
-            self.bottom_right_front.right,
-            self.bottom_right_back.right,
-        ]) && all_eq([
-            self.top_left_front.front,
-            self.top_right_front.front,
-            self.bottom_left_front.front,
-            self.bottom_right_front.front,
-        ]) && all_eq([
-            self.top_left_back.back,
-            self.top_right_back.back,
-            self.bottom_left_back.back,
-            self.bottom_right_back.back,
-        ])
+        all_eq(&mut self.x_layer(0), |p| p.left)
+            && all_eq(&mut self.x_layer(LAYERS - 1), |p| p.right)
+            && all_eq(&mut self.y_layer(0), |p| p.top)
+            && all_eq(&mut self.y_layer(LAYERS - 1), |p| p.bottom)
+            && all_eq(&mut self.z_layer(0), |p| p.front)
+            && all_eq(&mut self.z_layer(LAYERS - 1), |p| p.back)
     }
 }
 
-use Color::*;
-
-const SOLVED: Cube = Cube {
-    top_left_front: Piece {
-        top: White,
-        bottom: Inside,
-        left: Blue,
-        right: Inside,
-        front: Orange,
-        back: Inside,
-    },
-    top_left_back: Piece {
-        top: White,
-        bottom: Inside,
-        left: Blue,
-        right: Inside,
-        front: Inside,
-        back: Red,
-    },
-    top_right_front: Piece {
-        top: White,
-        bottom: Inside,
-        left: Inside,
-        right: Green,
-        front: Orange,
-        back: Inside,
-    },
-    top_right_back: Piece {
-        top: White,
-        bottom: Inside,
-        left: Inside,
-        right: Green,
-        front: Inside,
-        back: Red,
-    },
-    bottom_left_front: Piece {
-        top: Inside,
-        bottom: Yellow,
-        left: Blue,
-        right: Inside,
-        front: Orange,
-        back: Inside,
-    },
-    bottom_left_back: Piece {
-        top: Inside,
-        bottom: Yellow,
-        left: Blue,
-        right: Inside,
-        front: Inside,
-        back: Red,
-    },
-    bottom_right_front: Piece {
-        top: Inside,
-        bottom: Yellow,
-        left: Inside,
-        right: Green,
-        front: Orange,
-        back: Inside,
-    },
-    bottom_right_back: Piece {
-        top: Inside,
-        bottom: Yellow,
-        left: Inside,
-        right: Green,
-        front: Inside,
-        back: Red,
-    },
-};
-
-const UNSOLVED_A: Cube = Cube {
-    top_left_front: Piece {
-        top: Red,
-        bottom: Inside,
-        left: White,
-        right: Inside,
-        front: Green,
-        back: Inside,
-    },
-    top_left_back: Piece {
-        top: Green,
-        bottom: Inside,
-        left: Orange,
-        right: Inside,
-        front: Inside,
-        back: White,
-    },
-    top_right_front: Piece {
-        top: Yellow,
-        bottom: Inside,
-        left: Inside,
-        right: Red,
-        front: Blue,
-        back: Inside,
-    },
-    top_right_back: Piece {
-        top: Orange,
-        bottom: Inside,
-        left: Inside,
-        right: Yellow,
-        front: Inside,
-        back: Green,
-    },
-    bottom_left_front: Piece {
-        top: Inside,
-        bottom: Yellow,
-        left: Green,
-        right: Inside,
-        front: Red,
-        back: Inside,
-    },
-    bottom_left_back: Piece {
-        top: Inside,
-        bottom: Blue,
-        left: White,
-        right: Inside,
-        front: Inside,
-        back: Red,
-    },
-    bottom_right_front: Piece {
-        top: Inside,
-        bottom: White,
-        left: Inside,
-        right: Blue,
-        front: Orange,
-        back: Inside,
-    },
-    bottom_right_back: Piece {
-        top: Inside,
-        bottom: Orange,
-        left: Inside,
-        right: Yellow,
-        front: Inside,
-        back: Blue,
-    },
-};
-
-const UNSOLVED_B: Cube = Cube {
-    top_left_front: Piece {
-        top: Blue,
-        bottom: Inside,
-        left: Red,
-        right: Inside,
-        front: Yellow,
-        back: Inside,
-    },
-    top_left_back: Piece {
-        top: Blue,
-        bottom: Inside,
-        left: Red,
-        right: Inside,
-        front: Inside,
-        back: White,
-    },
-    top_right_front: Piece {
-        top: Blue,
-        bottom: Inside,
-        left: Inside,
-        right: Orange,
-        front: Yellow,
-        back: Inside,
-    },
-    top_right_back: Piece {
-        top: Orange,
-        bottom: Inside,
-        left: Inside,
-        right: Green,
-        front: Inside,
-        back: White,
-    },
-    bottom_left_front: Piece {
-        top: Inside,
-        bottom: Green,
-        left: White,
-        right: Inside,
-        front: Red,
-        back: Inside,
-    },
-    bottom_left_back: Piece {
-        top: Inside,
-        bottom: White,
-        left: Blue,
-        right: Inside,
-        front: Inside,
-        back: Orange,
-    },
-    bottom_right_front: Piece {
-        top: Inside,
-        bottom: Green,
-        left: Inside,
-        right: Orange,
-        front: Yellow,
-        back: Inside,
-    },
-    bottom_right_back: Piece {
-        top: Inside,
-        bottom: Red,
-        left: Inside,
-        right: Yellow,
-        front: Inside,
-        back: Green,
-    },
-};
-
-use proptest::prelude::*;
-use proptest_derive::Arbitrary;
-proptest! {
-    #![proptest_config(ProptestConfig {
-        cases: 1000_000, .. ProptestConfig::default()
-    })]
-    #[test]
-    fn unsolvable(ref vec in any::<Vec<Move>>()) {
-        let mut cube = UNSOLVED_B;
-
-        for move_ in vec {
-            cube.apply(*move_);
-        }
-
-        prop_assert!(!cube.solved());
+pub fn cube<const LAYERS: usize>(
+    top: [[Color; LAYERS]; LAYERS],
+    bottom: [[Color; LAYERS]; LAYERS],
+    left: [[Color; LAYERS]; LAYERS],
+    right: [[Color; LAYERS]; LAYERS],
+    front: [[Color; LAYERS]; LAYERS],
+    back: [[Color; LAYERS]; LAYERS],
+) -> Cube<LAYERS> {
+    fn swap_axes<const LAYERS: usize>(
+        face: [[Color; LAYERS]; LAYERS],
+    ) -> [[Color; LAYERS]; LAYERS] {
+        let mut range = [0; LAYERS];
+        range.iter_mut().enumerate().for_each(|(i, item)| *item = i);
+        range.map(|i| face.map(|x| x[i]))
     }
+
+    fn color_face<const LAYERS: usize>(
+        layer: CubeLayer<Piece, LAYERS>,
+        face: [[Color; LAYERS]; LAYERS],
+        side: impl Fn(&mut Piece) -> &mut Color,
+    ) {
+        layer
+            .0
+            .into_iter()
+            .zip(face)
+            .for_each(|(layer_col, face_col)| {
+                layer_col
+                    .into_iter()
+                    .zip(face_col)
+                    .for_each(|(piece, color)| {
+                        *side(piece) = color;
+                    })
+            });
+    }
+
+    fn flip<const LAYERS: usize>(mut layer: CubeLayer<Piece, LAYERS>) -> CubeLayer<Piece, LAYERS> {
+        layer.0.reverse();
+        layer
+    }
+
+    let top = swap_axes(top);
+    let bottom = swap_axes(bottom);
+    let left = swap_axes(left);
+    let right = swap_axes(right);
+    let front = swap_axes(front);
+    let back = swap_axes(back);
+
+    let mut cube = Cube {
+        content: [[[Piece {
+            top: Color::Inside,
+            bottom: Color::Inside,
+            left: Color::Inside,
+            right: Color::Inside,
+            front: Color::Inside,
+            back: Color::Inside,
+        }; LAYERS]; LAYERS]; LAYERS],
+    };
+
+    color_face(cube.x_layer(0), left, |p| &mut p.left);
+    color_face(flip(cube.x_layer(LAYERS - 1)), right, |p| &mut p.right);
+
+    color_face(cube.y_layer(0), top, |p| &mut p.top);
+    color_face(flip(cube.y_layer(LAYERS - 1)), bottom, |p| &mut p.bottom);
+
+    color_face(cube.z_layer(0), front, |p| &mut p.front);
+    color_face(flip(cube.z_layer(LAYERS - 1)), back, |p| &mut p.back);
+
+    cube
+}
+
+#[macro_export]
+macro_rules! color {
+    (w) => {
+        $crate::Color::White
+    };
+    (b) => {
+        $crate::Color::Blue
+    };
+    (r) => {
+        $crate::Color::Red
+    };
+    (o) => {
+        $crate::Color::Orange
+    };
+    (g) => {
+        $crate::Color::Green
+    };
+    (y) => {
+        $crate::Color::Yellow
+    };
+}
+
+#[macro_export]
+macro_rules! side {
+    (
+        [$(
+            $($color:ident)*,
+        )*]
+    ) => {
+        [$([$($crate::color!($color)),*]),*]
+    };
+}
+
+#[macro_export]
+macro_rules! cube {
+    (
+        top: $top:tt,
+        bottom: $bottom:tt,
+        left: $left:tt,
+        right: $right:tt,
+        front: $front:tt,
+        back: $back:tt,
+    ) => {
+        cube(
+            $crate::side!($top),
+            $crate::side!($bottom),
+            $crate::side!($left),
+            $crate::side!($right),
+            $crate::side!($front),
+            $crate::side!($back),
+        )
+    };
+}
+
+pub fn solved<const LAYERS: usize>() -> Cube<LAYERS> {
+    use Color::*;
+
+    cube(
+        [[White; LAYERS]; LAYERS],
+        [[Yellow; LAYERS]; LAYERS],
+        [[Red; LAYERS]; LAYERS],
+        [[Orange; LAYERS]; LAYERS],
+        [[Blue; LAYERS]; LAYERS],
+        [[Green; LAYERS]; LAYERS],
+    )
 }
 
 #[test]
 fn solved_is_solved() {
-    assert!(SOLVED.solved());
+    let mut solved = solved::<16>();
+    assert!(solved.solved());
+}
+
+#[test]
+fn one_move() {
+    let mut cube = cube! {
+        top: [
+            b w,
+            b w,
+        ],
+        bottom: [
+            y g,
+            y g,
+        ],
+        left: [
+            r r,
+            r r,
+        ],
+        right: [
+            o o,
+            o o,
+        ],
+        front: [
+            y b,
+            y b,
+        ],
+        back: [
+            g w,
+            g w,
+        ],
+    };
+
+    cube.apply(Move::X(0));
+
+    assert!(cube.solved());
+}
+
+#[test]
+fn test_layer_rotation() {
+    // This is supposed to be:
+    //
+    // 00 01 02 03 04 05 06
+    // 07 08 09 10 11 12 13
+    // 14 15 16 17 18 19 20
+    // 21 22 23 24 25 26 27
+    // 28 29 30 31 32 33 34
+    // 35 36 37 38 39 40 41
+    // 42 43 44 45 46 47 48
+    //
+    // This is a bit awkward because I decided to make the outer array the x axis and the inner one
+    // y. That way you can index with [x][y], but it makes array litterals weird.
+    let mut layer = [
+        [00, 07, 14, 21, 28, 35, 42],
+        [01, 08, 15, 22, 29, 36, 43],
+        [02, 09, 16, 23, 30, 37, 44],
+        [03, 10, 17, 24, 31, 38, 45],
+        [04, 11, 18, 25, 32, 39, 46],
+        [05, 12, 19, 26, 33, 40, 47],
+        [06, 13, 20, 27, 34, 41, 48],
+    ];
+
+    {
+        let mut layer: CubeLayer<u32, 7> = CubeLayer(layer.each_mut().map(|x| x.each_mut()));
+        layer.rotate();
+    }
+
+    assert_eq!(
+        layer,
+        [
+            [42, 43, 44, 45, 46, 47, 48],
+            [35, 36, 37, 38, 39, 40, 41],
+            [28, 29, 30, 31, 32, 33, 34],
+            [21, 22, 23, 24, 25, 26, 27],
+            [14, 15, 16, 17, 18, 19, 20],
+            [07, 08, 09, 10, 11, 12, 13],
+            [00, 01, 02, 03, 04, 05, 06],
+        ]
+    );
 }
