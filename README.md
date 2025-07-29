@@ -28,12 +28,21 @@ course this also means that we can encode tons of invalid and nonsensical states
 
 ![sketch of the cube with coordinates](cube.png)
 
+This shows both the coordinates and the nesting of the arrays. The x axis is the outermost array and
+the z one the innermost.
+
 ## Got an unsolved cube?
 
 It better be a 2×2×2 cube. 3×3×3 ones don't seem solvable by this in a reasonable time, unless
 they're only a few moves away from a solved state.
 
 Enter the colors on your cube into the `cube!` macro invocation in `tests/proptest_unsolvable.rs`.
+
+The orientation of the faces in the `cube` macro is a bit strange. For the `top` face, take the z
+axis as the x axis and x as y, for the left one it's y as x and z as y. Then the bottom and right
+ones are that, but flipped. This preserves the origin and keeps the axes poining to the left and
+down. I didn't spend a whole lot of time thinking about the alternatives, so perhaps there is an
+option that both a simpler implementation and a clearer notation.
 
 Then run:
 
