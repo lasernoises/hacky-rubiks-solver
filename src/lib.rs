@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Color {
     White,
     Blue,
@@ -9,7 +9,7 @@ pub enum Color {
     Inside,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Piece {
     pub top: Color,
     pub bottom: Color,
@@ -30,12 +30,14 @@ pub enum Move {
     Z(#[proptest(strategy = "0..params")] usize),
 }
 
+#[derive(Debug)]
 pub struct Cube<const LAYERS: usize> {
     /// In order from outer to inner arrays these encode the x, y and z axes. This encoding is
     /// simply for the convenience of indexing them as `[x][y][z]`.
     pub content: [[[Piece; LAYERS]; LAYERS]; LAYERS],
 }
 
+#[derive(Debug)]
 struct CubeLayer<'a, T, const LAYERS: usize>([[&'a mut T; LAYERS]; LAYERS]);
 
 impl<'a, T, const LAYERS: usize> CubeLayer<'a, T, LAYERS> {
@@ -105,6 +107,12 @@ fn rotate<T>(a: &mut T, b: &mut T, c: &mut T, d: &mut T) {
     std::mem::swap(a, c);
 }
 
+fn swap_axes<T, const N: usize>(grid: [[T; N]; N]) -> [[T; N]; N] {
+    let mut iters = grid.map(|x| x.into_iter());
+
+    [0; N].map(|_| iters.each_mut().map(|x| x.next().unwrap()))
+}
+
 impl Piece {
     fn rotate_x(&mut self) {
         rotate(
@@ -140,7 +148,9 @@ impl<const LAYERS: usize> Cube<LAYERS> {
     }
 
     fn y_layer(&mut self, layer: usize) -> CubeLayer<Piece, LAYERS> {
-        CubeLayer(self.content.each_mut().map(|x| x[layer].each_mut()))
+        CubeLayer(swap_axes(
+            self.content.each_mut().map(|x| x[layer].each_mut()),
+        ))
     }
 
     fn z_layer(&mut self, layer: usize) -> CubeLayer<Piece, LAYERS> {
@@ -164,11 +174,11 @@ impl<const LAYERS: usize> Cube<LAYERS> {
             layer: &mut CubeLayer<Piece, LAYERS>,
             field: impl Fn(&Piece) -> Color,
         ) -> bool {
-            layer
-                .0
-                .as_flattened()
-                .windows(2)
-                .all(|w| field(w[0]) == field(w[1]))
+            layer.0.as_flattened().windows(2).all(|w| {
+                assert!(field(w[0]) != Color::Inside);
+                assert!(field(w[1]) != Color::Inside);
+                field(w[0]) == field(w[1])
+            })
         }
 
         all_eq(&mut self.x_layer(0), |p| p.left)
@@ -188,14 +198,6 @@ pub fn cube<const LAYERS: usize>(
     front: [[Color; LAYERS]; LAYERS],
     back: [[Color; LAYERS]; LAYERS],
 ) -> Cube<LAYERS> {
-    fn swap_axes<const LAYERS: usize>(
-        face: [[Color; LAYERS]; LAYERS],
-    ) -> [[Color; LAYERS]; LAYERS] {
-        let mut range = [0; LAYERS];
-        range.iter_mut().enumerate().for_each(|(i, item)| *item = i);
-        range.map(|i| face.map(|x| x[i]))
-    }
-
     fn color_face<const LAYERS: usize>(
         layer: CubeLayer<Piece, LAYERS>,
         face: [[Color; LAYERS]; LAYERS],
@@ -324,15 +326,15 @@ fn solved_is_solved() {
 }
 
 #[test]
-fn one_move() {
+fn one_move_x() {
     let mut cube = cube! {
         top: [
-            b w,
-            b w,
+            b b,
+            w w,
         ],
         bottom: [
-            y g,
-            y g,
+            g g,
+            y y,
         ],
         left: [
             r r,
@@ -353,6 +355,45 @@ fn one_move() {
     };
 
     cube.apply(Move::X(0));
+
+    assert!(cube.solved());
+}
+
+#[test]
+fn one_move_y() {
+    let mut cube = cube! {
+        top: [
+            w w,
+            w w,
+        ],
+        bottom: [
+            y y,
+            y y,
+        ],
+        left: [
+            b o,
+            b o,
+        ],
+        right: [
+            r g,
+            r g,
+        ],
+        front: [
+            o o,
+            g g,
+        ],
+        back: [
+            r r,
+            b b,
+        ],
+    };
+
+    dbg!(&cube);
+    dbg!(cube.y_layer(0));
+
+    cube.apply(Move::Y(0));
+
+    dbg!(&cube);
 
     assert!(cube.solved());
 }
