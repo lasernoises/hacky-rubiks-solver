@@ -388,12 +388,121 @@ fn one_move_y() {
         ],
     };
 
-    dbg!(&cube);
-    dbg!(cube.y_layer(0));
-
     cube.apply(Move::Y(0));
 
-    dbg!(&cube);
+    assert!(cube.solved());
+}
+
+#[test]
+fn one_move_middle() {
+    let mut cube = cube! {
+        top: [
+            b b b,
+            o o o,
+            b b b,
+        ],
+        bottom: [
+            g g g,
+            r r r,
+            g g g,
+        ],
+        left: [
+            y y y,
+            y y y,
+            y y y,
+        ],
+        right: [
+            w w w,
+            w w w,
+            w w w,
+        ],
+        front: [
+            o g o,
+            o g o,
+            o g o,
+        ],
+        back: [
+            r b r,
+            r b r,
+            r b r,
+        ],
+    };
+
+    cube.apply(Move::X(1));
+
+    assert!(cube.solved());
+
+    let mut cube = cube! {
+        top: [
+            b b b,
+            b b b,
+            b b b,
+        ],
+        bottom: [
+            g g g,
+            g g g,
+            g g g,
+        ],
+        left: [
+            y r y,
+            y r y,
+            y r y,
+        ],
+        right: [
+            w o w,
+            w o w,
+            w o w,
+        ],
+        front: [
+            o o o,
+            y y y,
+            o o o,
+        ],
+        back: [
+            r r r,
+            w w w,
+            r r r,
+        ],
+    };
+
+    cube.apply(Move::Y(1));
+
+    assert!(cube.solved());
+
+    let mut cube = cube! {
+        top: [
+            b w b,
+            b w b,
+            b w b,
+        ],
+        bottom: [
+            g y g,
+            g y g,
+            g y g,
+        ],
+        left: [
+            y y y,
+            b b b,
+            y y y,
+        ],
+        right: [
+            w w w,
+            g g g,
+            w w w,
+        ],
+        front: [
+            o o o,
+            o o o,
+            o o o,
+        ],
+        back: [
+            r r r,
+            r r r,
+            r r r,
+        ],
+    };
+
+    cube.apply(Move::Z(1));
 
     assert!(cube.solved());
 }
