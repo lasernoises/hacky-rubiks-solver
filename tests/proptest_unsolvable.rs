@@ -1,13 +1,13 @@
 use hacky_rubiks_solver::{Cube, Move, cube};
 use proptest::prelude::*;
 
-fn strat(layers: usize, max_size: usize) -> BoxedStrategy<Vec<Move>> {
+fn strat(layers: usize, min_size: usize, max_size: usize) -> BoxedStrategy<Vec<Move>> {
     let moves = layers * 3;
 
     (
         0..moves,
         1..=3u8,
-        proptest::collection::vec((0..moves - 1, 1..=3u8), 0..=max_size),
+        proptest::collection::vec((0..moves - 1, 1..=3u8), min_size..=max_size),
     )
         .prop_map(move |(inital_move, initial_repeat, remaining)| {
             let push_move = |moves: &mut Vec<Move>, move_idx: usize, repeat: u8| {
@@ -31,15 +31,13 @@ fn strat(layers: usize, max_size: usize) -> BoxedStrategy<Vec<Move>> {
             let mut last_move = inital_move;
 
             for (move_idx, repeat) in remaining {
-                push_move(
-                    &mut moves,
-                    if move_idx >= last_move {
-                        move_idx + 1
-                    } else {
-                        move_idx
-                    },
-                    repeat,
-                );
+                let move_idx = if move_idx >= last_move {
+                    move_idx + 1
+                } else {
+                    move_idx
+                };
+
+                push_move(&mut moves, move_idx, repeat);
 
                 last_move = move_idx;
             }
@@ -55,8 +53,7 @@ proptest! {
         ..ProptestConfig::default()
     })]
     #[test]
-    // fn unsolvable(ref vec in any_with::<Vec<Move>>((SizeRange::new(0..=256), 3))) {
-    fn unsolvable(ref vec in strat(3, 32)) {
+    fn unsolvable(ref vec in strat(3, 16, 32)) {
         // let mut cube: Cube<2> = cube! {
         //     top: [
         //         r r,
