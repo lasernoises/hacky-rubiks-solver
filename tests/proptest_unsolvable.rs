@@ -10,20 +10,20 @@ proptest! {
     fn unsolvable(ref vec in any_with::<Vec<Move>>((SizeRange::new(0..=100), 2))) {
         let mut cube: Cube<2> = cube! {
             top: [
-                w b,
                 r w,
+                w b,
             ],
             bottom: [
+                o y,
                 y y,
-                y o,
             ],
             left: [
-                r y,
-                r b,
+                y b,
+                r r,
             ],
             right: [
-                g w,
-                o o,
+                o g,
+                o w,
             ],
             front: [
                 b o,

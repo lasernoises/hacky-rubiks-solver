@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 8c44b8e127d05ec2643779949b699998e355f8a536fe0d4a76a13c74b690a234 # shrinks to ref vec = [X(2)]
+cc 575d69bbcff4fa0ba6c2972ad1a8e7a914fc6deb50712b881e4a52b8962265f4 # shrinks to ref vec = [X(1), Z(1), Y(1), Y(1), Z(0), Z(1), X(1), Y(1), Y(0)]

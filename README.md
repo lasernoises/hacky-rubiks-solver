@@ -29,3 +29,44 @@ cargo test --release
 
 Without `--release` also works, but is much slower. On my machine it was about 20x slower.
 
+The output might look something like this:
+
+```
+thread 'unsolvable' panicked at tests/proptest_unsolvable.rs:4:1:
+Test failed: assertion failed: !cube.solved() at tests/proptest_unsolvable.rs:42.
+minimal failing input: ref vec = [
+    X(
+        1,
+    ),
+    Z(
+        1,
+    ),
+    Y(
+        1,
+    ),
+    Y(
+        1,
+    ),
+    Z(
+        0,
+    ),
+    Z(
+        1,
+    ),
+    X(
+        1,
+    ),
+    Y(
+        1,
+    ),
+    Y(
+        0,
+    ),
+]
+        successes: 121205
+        local rejects: 0
+        global rejects: 0
+```
+
+In this case (a 2×2×2 cube) the cube was solved in the middle of these instuctions and then actually
+unsolved and re-solved.
